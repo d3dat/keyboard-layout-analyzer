@@ -1,0 +1,114 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  APP_NAME: kbda
+
+jobs:
+  build:
+    name: Build for ${{ matrix.goos }} (${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            archive_format: zip
+          - goos: linux
+            goarch: amd64
+            archive_format: tar.gz
+          - goos: darwin
+            goarch: amd64
+            archive_format: tar.gz
+          - goos: darwin
+            goarch: arm64
+            archive_format: tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.19'
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Build binary (static)
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          BINARY_NAME="${APP_NAME}"
+          if [ "$GOOS" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+          go build -o "build/${BINARY_NAME}" -ldflags="-s -w -extldflags '-static'" ./cmd/app
+
+      - name: Prepare archive contents
+        run: |
+          ARCHIVE_DIR="archive/${APP_NAME}"
+          mkdir -p "${ARCHIVE_DIR}"
+          cp -r build/* "${ARCHIVE_DIR}/"
+          # Копируем всё, что нужно в релиз
+          cp -r configs/* README.md LICENSE "${ARCHIVE_DIR}/" 2>/dev/null || true
+
+      - name: Create versioned archive
+        env:
+          VERSION: ${{ env.VERSION }}
+        run: |
+          cd archive
+          FINAL_NAME="${APP_NAME}-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.archive_format }}" = "zip" ]; then
+            zip -r "../${FINAL_NAME}.zip" "${APP_NAME}"
+          else
+            tar -czf "../${FINAL_NAME}.tar.gz" "${APP_NAME}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            ${APP_NAME}-${{ env.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+            ${APP_NAME}-${{ env.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+
+  publish:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec mv {} release-assets/ \;
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

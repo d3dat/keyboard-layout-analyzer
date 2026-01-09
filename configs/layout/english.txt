@@ -1,0 +1,96 @@
+# В данном файле представлены раскладки, которые
+# можно использовать для сравнительного анализа
+# при формировании индивидуальной раскладки.
+#
+# Следует обратить внимание, что в представленных
+# раскладках используется разный набор символов,
+# поэтому различия в статистике будут обусловлены
+# не только расположением символов, но и различиями
+# в частотности используемых в раскладках символов.
+#
+# Также следует иметь в виду, что при использовании
+# данного файла для генерации новых раскладок без 
+# указания базовой будут использоваться наименее частотные
+# буквы из всех представленных раскладок, что может
+# привести к выпадению из сгенерированных раскладок
+# наиболее частотных букв.
+#
+# В связи с этим при использования данного файла при
+# генерации новых раскладок следует указывать базовую
+# раскладку, в этом случае для поиска новых раскладок
+# будут использоваться буквы только из указанной
+# раскладки.
+#
+# Или использовать в качестве базового файл layout/english-mod.txt,
+# в котором содержатся модифицированными версиями представленных
+# раскладок с одинаковым набором символов.
+
+qwerty
+q w e r t  y u i o p
+a s d f g  h j k l ;
+z x c v b  n m , . /
+
+dvorak
+' , . p y  f g c r l
+a o e u i  d h t n s
+; q j k x  b m w v z
+
+colemak
+# https://colemak.org
+q w f p g  j l u y ;
+a r s t d  h n e i o
+z x c v b  k m , . /
+
+colemak-dh
+# https://colemakmods.github.io/mod-dh
+q w f p b  j l u y ;
+a r s t g  m n e i o
+z x c d v  k h , . /
+
+graphite
+# https://github.com/rdavison/graphite-layout
+b l d w z  ' f o u j
+n r t s g  y h a e i
+q x m c v  k p . - /
+
+gallium
+# https://github.com/GalileoBlues/Gallium
+b l d c v  z y o u ,
+n r t s g  p h a e i 
+q x m  w j k f ' ; .
+
+canary
+# https://github.com/Apsu/Canary
+w l y p b  z f o u ;
+c r s t g  m n e i a
+q j v d k  x h / , .
+
+sturdy
+# https://oxey.dev/sturdy/index.html
+v m l c p  x f o u j
+s t r d y  . n a e i
+z k q g w  b h ' ; ,
+
+semimak
+# http://www.semilin.dev/blog/semimak
+f l h v z  q w u o y
+s r n t k  c d e a i
+x ' b m j  p g , . /
+
+mtgap
+# https://mathematicalmulticore.wordpress.com/the-keyboard-layout-project
+y p o u j  k d l c w
+i n e a ,  m h t s r
+q z / . ;  b f g v x
+
+workman
+# https://workmanlayout.org
+q d r w b  j f u p ;
+a s h t g  y n e o i
+z x m c v  k l , . /
+
+focal
+# https://github.com/Keyhabit/Focal-keyboard-layout
+v l h g k  q f o u j
+s r n t b  y c a e i
+z x m d p  ' w . ; ,

@@ -1,0 +1,171 @@
+# В данном файле представлены модифицированные раскладки,
+# в которые внесены изменения так, чтобы для целей
+# сравнительного анализа во всех раскладках использовался
+# одинаковый набор символов.
+#
+# Модифицированные раскладки отмечены звездочкой.
+#
+# Оригинальные раскладки вместе со ссылками на источник
+# размещены в файле layout/english.txt.
+
+qwerty
+q w e r t  y u i o p
+a s d f g  h j k l ;
+z x c v b  n m , . /
+
+dvorak*
+/ , . p y  f g c r l
+a o e u i  d h t n s
+; q j k x  b m w v z
+
+colemak
+q w f p g  j l u y ;
+a r s t d  h n e i o
+z x c v b  k m , . /
+
+colemak-dh
+q w f p b  j l u y ;
+a r s t g  m n e i o
+z x c d v  k h , . /
+
+graphite*
+b l d w z  ; f o u j
+n r t s g  y h a e i
+q x m c v  k p . , /
+
+gallium*
+b l d c v  z y o u ,
+n r t s g  p h a e i 
+q x m  w j k f / ; .
+
+canary
+w l y p b  z f o u ;
+c r s t g  m n e i a
+q j v d k  x h / , .
+
+sturdy*
+v m l c p  x f o u j
+s t r d y  . n a e i
+z k q g w  b h / ; ,
+
+semimak*
+f l h v z  q w u o y
+s r n t k  c d e a i
+x ; b m j  p g , . /
+
+mtgap
+y p o u j  k d l c w
+i n e a ,  m h t s r
+q z / . ;  b f g v x
+
+workman
+q d r w b  j f u p ;
+a s h t g  y n e o i
+z x m c v  k l , . /
+
+focal*
+v l h g k  q f o u j
+s r n t b  y c a e i
+z x m d p  / w . ; ,
+
+r 86.26
+v b l m z  x u o p g
+h s t n w  / e a i d
+k f c r q  ; y . , j
+
+r 73.65
+b l r f k  q p o u g
+h n t s c  ; e a i d
+x v w m z  / , . y j
+
+r 73.14
+g l n d v  q p o u y
+c r t s f  ; e a i h
+x w b m z  / , . k j
+
+r 77.14
+g l n d z  j f o u p
+h r t s w  k a e i c
+x v m b q  / y , . ;
+
+r 75.80
+m l c p b  q g o u y
+r n s t d  ; e a i h
+z v f w j  / k . , x
+
+r 78.28
+m r l p b  q f o u y
+d n t s g  . a e i h
+j v w c z  / k ; , x
+
+r 79.52
+b d l m v  j p u o y
+n s r t g  , i e a h
+x c w f z  / . ; q k
+
+r 81.88
+b l c d f  q y o u j
+h r s t g  . i a e n
+v w p m z  ; k , / x
+
+r 78.23
+b l c f v  q y o u g
+r n s t d  ; e a i h
+x m w p z  / j . , k
+
+r 81.30
+g n d c v  ; p o u j
+l r t s f  . i a e h
+w x b m q  / y , z k
+
+r 82.22
+p l m c b  j g u o x
+n r t s d  k h e a i
+q v w f z  / y , ; .
+
+r 82.34
+g n l d k  q y o u b
+c h r t w  , i a e s
+v p m f x  ; . z / j
+
+r 82.08
+m l c p b  j y o u ,
+r t s h f  . i a e n
+z w g d v  ; k q / x
+
+r 82.12
+p l c b v  j g u o .
+n r s t d  k h e a i
+q w f m z  / y , ; x
+
+r 81.38
+k r l c v  q p o u g
+h n t s w  . i a e d
+b x m f z  ; y , / j
+
+r 81.70
+b l c d v  j p u o k
+r n s t g  . i e a h
+x w f m z  / y , ; q
+
+r 81.65
+k l c f b  q y o u j
+r n s t g  d h a e i
+x w m p v  z . , / ;
+
+r 81.08
+w d n g v  q p o u b
+l t r s f  . i a e h
+x k m c j  ; y , / z
+
+r 82.86 sw
+w d n g v  q p o u b
+l t r s f  / i a e h
+x k m c j  ; y , . z
+
+
+# зйщцшукйцщзшу
+r 80.02
+b l d y g  / u o p j
+r h t s c  , i e n a
+w x m f v  ; . q z k
