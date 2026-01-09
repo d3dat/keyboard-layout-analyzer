@@ -3370,9 +3370,9 @@ func (ch *CommandHandler) CommandBigramLetter(args string) error {
 	// Проверяем, есть ли первый аргумент - номер раскладки
 	if len(argParts) > 0 {
 		// Пытаемся распознать номер раскладки
-		if idx, err := strconv.Atoi(argParts[0]); err == nil && idx >= 1 {
-			// Используем пользовательскую индексацию (начиная с 1), преобразуем в системную (начиная с 0)
-			layoutIndex = idx - 1
+		if idx, err := strconv.Atoi(argParts[0]); err == nil && idx >= 0 {  // Изменили условие на idx >= 0
+			// Используем пользовательскую индексацию (начиная с 0), преобразуем в системную
+			layoutIndex = idx
 			// Если есть второй аргумент, это строка букв
 			if len(argParts) > 1 {
 				letters = argParts[1]
@@ -3380,8 +3380,8 @@ func (ch *CommandHandler) CommandBigramLetter(args string) error {
 				// Если нет строки букв, выводим для всех букв в алфавитном порядке
 				// Собираем все уникальные буквы из указанной раскладки
 				allLetters := make(map[rune]bool)
-				if layoutIndex < len(ch.layouts.Layouts) {
-					layout := &ch.layouts.Layouts[layoutIndex]
+				layout, found := ch.getLayoutByIndex(layoutIndex)
+				if found {
 					for row := 0; row < 3; row++ {
 						for col := 0; col < 10; col++ {
 							key := layout.Keys[row][col]
@@ -3413,8 +3413,8 @@ func (ch *CommandHandler) CommandBigramLetter(args string) error {
 		layoutIndex = 0
 		// Собираем все уникальные буквы из первой раскладки
 		allLetters := make(map[rune]bool)
-		if len(ch.layouts.Layouts) > 0 {
-			layout := &ch.layouts.Layouts[0]
+		layout, found := ch.getLayoutByIndex(layoutIndex)
+		if found {
 			for row := 0; row < 3; row++ {
 				for col := 0; col < 10; col++ {
 					key := layout.Keys[row][col]
@@ -3438,8 +3438,9 @@ func (ch *CommandHandler) CommandBigramLetter(args string) error {
 	}
 
 	// Проверяем, что раскладка с указанным индексом существует
-	if layoutIndex >= len(ch.layouts.Layouts) {
-		return fmt.Errorf("раскладка с индексом %d не найдена", layoutIndex+1) // Показываем пользовательский индекс
+	layout, layoutFound := ch.getLayoutByIndex(layoutIndex)
+	if !layoutFound {
+		return fmt.Errorf("раскладка с индексом %d не найдена", layoutIndex) // Показываем индекс как есть
 	}
 
 	// Обрабатываем каждую букву из строки
@@ -3447,13 +3448,17 @@ func (ch *CommandHandler) CommandBigramLetter(args string) error {
 
 	// Собираем все буквы, которые нужно обработать
 	var validLetters []rune
-	layout := &ch.layouts.Layouts[layoutIndex]
 	for _, letter := range letters {
-		// Проверяем, содержится ли буква в раскладке
+		// Проверяем, содержится ли буква в раскладке (регистронезависимо)
 		letterFound := false
+		letterStr := string(letter)
+		letterLower := strings.ToLower(letterStr)
+
 		for row := 0; row < 3; row++ {
 			for col := 0; col < 10; col++ {
-				if layout.Keys[row][col] == string(letter) {
+				key := layout.Keys[row][col]
+				keyLower := strings.ToLower(key)
+				if key == letterStr || keyLower == letterLower {
 					letterFound = true
 					break
 				}
@@ -3466,7 +3471,7 @@ func (ch *CommandHandler) CommandBigramLetter(args string) error {
 		if letterFound {
 			validLetters = append(validLetters, letter)
 		} else {
-			fmt.Printf("Буква '%c' не найдена в раскладке %d\n", letter, layoutIndex+1)
+			fmt.Printf("Буква '%c' не найдена в раскладке %d\n", letter, layoutIndex)
 		}
 	}
 
@@ -3495,11 +3500,15 @@ func (ch *CommandHandler) CommandBigramLetter(args string) error {
 
 // displayBigramForLetter выводит визуализацию биграмм для конкретной буквы
 func (ch *CommandHandler) displayBigramForLetter(layout *Layout, letter string) error {
-	// Находим позицию буквы в раскладке
+	// Находим позицию буквы в раскладке (регистронезависимо)
 	letterRow, letterCol := -1, -1
+	letterLower := strings.ToLower(letter)
+
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 10; col++ {
-			if layout.Keys[row][col] == letter {
+			key := layout.Keys[row][col]
+			keyLower := strings.ToLower(key)
+			if key == letter || keyLower == letterLower {
 				letterRow, letterCol = row, col
 				break
 			}
@@ -3589,15 +3598,27 @@ func (ch *CommandHandler) printBigramBlock(layout *Layout, letter string, isLeft
 
 							if freq, exists := ch.langData.Bigrams[sideBigram]; exists && freq > maxFreqForLetter {
 								maxFreqForLetter = freq
+							} else if !exists {
+								// Если не найдена, ищем регистронезависимо
+								sideBigramLower := strings.ToLower(sideBigram)
+								if freq, exists := ch.langData.Bigrams[sideBigramLower]; exists && freq > maxFreqForLetter {
+									maxFreqForLetter = freq
+								}
 							}
 						}
 					}
 				}
 
-				// Получаем частоту биграммы для текущей буквы
+				// Получаем частоту биграммы для текущей буквы (регистронезависимо)
 				bigramFreq = 0 // по умолчанию 0
 				if freq, exists := ch.langData.Bigrams[bigram]; exists {
 					bigramFreq = freq
+				} else {
+					// Если не найдена, ищем регистронезависимо
+					bigramLower := strings.ToLower(bigram)
+					if freq, exists := ch.langData.Bigrams[bigramLower]; exists {
+						bigramFreq = freq
+					}
 				}
 
 				// Нормируем частоту на максимальное значение частоты биграммы в языковом файле
@@ -3649,10 +3670,15 @@ func (ch *CommandHandler) printBigramBlock(layout *Layout, letter string, isLeft
 					bigram = key + letter
 				}
 
-				// Проверяем, есть ли такая биграмма в данных
+				// Проверяем, есть ли такая биграмма в данных (регистронезависимо)
 				freq, exists := ch.langData.Bigrams[bigram]
 				if !exists {
-					freq = 0 // Если биграмма отсутствует, используем нулевое значение
+					// Если не найдена, ищем регистронезависимо
+					bigramLower := strings.ToLower(bigram)
+					freq, exists = ch.langData.Bigrams[bigramLower]
+					if !exists {
+						freq = 0 // Если биграмма отсутствует, используем нулевое значение
+					}
 				}
 
 				// Нормируем частоту для отображения

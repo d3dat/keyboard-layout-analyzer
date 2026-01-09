@@ -4,8 +4,57 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 	"time"
+	"unicode"
 )
+
+// isUppercase checks if a string represents an uppercase letter
+func isUppercase(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		return unicode.IsUpper(r)
+	}
+	return false
+}
+
+// hasUppercaseLetters checks if a layout contains any uppercase letters
+func hasUppercaseLetters(layout *Layout) bool {
+	for row := 0; row < 3; row++ {
+		for col := 0; col < 10; col++ {
+			if isUppercase(layout.Keys[row][col]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// createLowercaseLayout creates a copy of layout with all letters converted to lowercase
+// and returns both the lowercase layout and a boolean matrix indicating original uppercase positions
+func createLowercaseLayout(originalLayout *Layout) (*Layout, [3][10]bool) {
+	lowercaseLayout := *originalLayout
+	uppercasePositions := [3][10]bool{}
+
+	for row := 0; row < 3; row++ {
+		for col := 0; col < 10; col++ {
+			key := originalLayout.Keys[row][col]
+			if key != "" && key != " " {
+				// Check if original was uppercase
+				uppercasePositions[row][col] = isUppercase(key)
+
+				// Convert to lowercase
+				lowercaseLayout.Keys[row][col] = strings.ToLower(key)
+			} else {
+				uppercasePositions[row][col] = false
+			}
+		}
+	}
+
+	return &lowercaseLayout, uppercasePositions
+}
 
 // SimulatedAnnealingParams содержит параметры алгоритма Simulated Annealing
 type SimulatedAnnealingParams struct {
@@ -239,11 +288,14 @@ func GenerateRandomLayoutFromLayouts(config *KeyboardConfig, layouts *ParsedLayo
 		Name: "random",
 	}
 
-	// Собираем все уникальные буквы из первой раскладки
+	// Create a lowercase version of the first layout and track original uppercase positions
+	lowercaseBaseLayout, uppercasePositions := createLowercaseLayout(&layouts.Layouts[0])
+
+	// Собираем все уникальные буквы из нормализованной (нижний регистр) первой раскладки
 	lettersMap := make(map[string]bool)
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 10; col++ {
-			key := layouts.Layouts[0].Keys[row][col]
+			key := lowercaseBaseLayout.Keys[row][col]
 			if key != "" && key != " " {
 				lettersMap[key] = true
 			}
@@ -252,19 +304,31 @@ func GenerateRandomLayoutFromLayouts(config *KeyboardConfig, layouts *ParsedLayo
 
 	freeLetters := make([]string, 0)
 
-	// Размещаем буквы в фиксированных 'x' позициях и собираем оставшиеся буквы
+	// Проверяем, содержит ли первоначальная раскладка заглавные буквы
+	hasUppercase := hasUppercaseLetters(&layouts.Layouts[0])
+
+	// Размещаем буквы в позициях с заглавными буквами (если они есть) или в фиксированных позициях из конфига (если заглавных букв нет)
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 10; col++ {
-			if config.FixedPositions[row][col] == "x" && len(layouts.Layouts) > 0 {
-				// Помещаем букву в фиксированную 'x' позицию
-				layout.Keys[row][col] = layouts.Layouts[0].Keys[row][col]
+			if len(layouts.Layouts) > 0 && uppercasePositions[row][col] {
+				// If the original base layout had an uppercase letter, treat it as fixed
+				// Place the lowercase version in the layout
+				layout.Keys[row][col] = lowercaseBaseLayout.Keys[row][col]
 				// Удаляем эту букву из пула свободных
-				delete(lettersMap, layouts.Layouts[0].Keys[row][col])
-			} else if config.FixedPositions[row][col] != "." && config.FixedPositions[row][col] != "x" {
-				// Помещаем фиксированную букву (не 'x')
-				layout.Keys[row][col] = config.FixedPositions[row][col]
-				// Удаляем эту букву из пула свободных
-				delete(lettersMap, config.FixedPositions[row][col])
+				delete(lettersMap, lowercaseBaseLayout.Keys[row][col])
+			} else if !hasUppercase {
+				// Если в базовой раскладке нет заглавных букв, используем фиксированные позиции из конфига
+				if config.FixedPositions[row][col] == "x" && len(layouts.Layouts) > 0 {
+					// Помещаем букву в фиксированную 'x' позицию
+					layout.Keys[row][col] = lowercaseBaseLayout.Keys[row][col]
+					// Удаляем эту букву из пула свободных
+					delete(lettersMap, lowercaseBaseLayout.Keys[row][col])
+				} else if config.FixedPositions[row][col] != "." && config.FixedPositions[row][col] != "x" {
+					// Помещаем фиксированную букву (не 'x')
+					layout.Keys[row][col] = strings.ToLower(config.FixedPositions[row][col])
+					// Удаляем эту букву из пула свободных
+					delete(lettersMap, strings.ToLower(config.FixedPositions[row][col]))
+				}
 			}
 		}
 	}
@@ -279,13 +343,24 @@ func GenerateRandomLayoutFromLayouts(config *KeyboardConfig, layouts *ParsedLayo
 		freeLetters[i], freeLetters[j] = freeLetters[j], freeLetters[i]
 	})
 
-	// Размещаем свободные буквы в позициях, которые могут меняться (отмеченные '.')
+	// Размещаем свободные буквы в позициях, которые могут меняться (отмеченные '.' или не содержащие заглавных букв)
 	letterIdx := 0
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 10; col++ {
-			if config.FixedPositions[row][col] == "." && letterIdx < len(freeLetters) {
-				layout.Keys[row][col] = freeLetters[letterIdx]
-				letterIdx++
+			// Если в базовой раскладке были заглавные буквы, используем только их как фиксированные позиции
+			// Иначе используем фиксированные позиции из конфига
+			if hasUppercase {
+				// Только позиции без оригинальных заглавных букв доступны для размещения свободных букв
+				if !uppercasePositions[row][col] && letterIdx < len(freeLetters) {
+					layout.Keys[row][col] = freeLetters[letterIdx]
+					letterIdx++
+				}
+			} else {
+				// Используем фиксированные позиции из конфига
+				if config.FixedPositions[row][col] == "." && letterIdx < len(freeLetters) {
+					layout.Keys[row][col] = freeLetters[letterIdx]
+					letterIdx++
+				}
 			}
 		}
 	}
@@ -297,13 +372,28 @@ func GenerateRandomLayoutFromLayouts(config *KeyboardConfig, layouts *ParsedLayo
 func generateNeighbor(layout *Layout, config *KeyboardConfig) Layout {
 	neighbor := *layout
 
+	// Для этой функции мы просто проверяем заглавные буквы в текущей раскладке
+	// Если в раскладке есть заглавные буквы, считаем, что это означает,
+	// что мы работаем с предварительно обработанной раскладкой
+	hasUppercase := hasUppercaseLetters(layout)
+
 	// Находим две случайные позиции, которые не зафиксированы
 	var swappablePositions [][2]int
 
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 10; col++ {
-			if config.FixedPositions[row][col] == "." {
-				swappablePositions = append(swappablePositions, [2]int{row, col})
+			// Если в раскладке есть заглавные буквы, используем только их как фиксированные позиции
+			// Иначе используем фиксированные позиции из конфига
+			if hasUppercase {
+				// Только позиции без заглавных букв доступны для свапа
+				if !isUppercase(layout.Keys[row][col]) {
+					swappablePositions = append(swappablePositions, [2]int{row, col})
+				}
+			} else {
+				// Используем фиксированные позиции из конфига
+				if config.FixedPositions[row][col] == "." && !isUppercase(layout.Keys[row][col]) {
+					swappablePositions = append(swappablePositions, [2]int{row, col})
+				}
 			}
 		}
 	}
@@ -331,6 +421,7 @@ func generateNeighbor(layout *Layout, config *KeyboardConfig) Layout {
 	return neighbor
 }
 
+
 // sortResultsByScore сортирует результаты по score (лучшие первыми)
 func sortResultsByScore(results []SimulatedAnnealingResult) {
 	// Простая сортировка пузырьком
@@ -347,13 +438,17 @@ func sortResultsByScore(results []SimulatedAnnealingResult) {
 func SearchOptimalLayoutFromSpecificLayout(config *KeyboardConfig, langData *LanguageData, layouts *ParsedLayouts, params SimulatedAnnealingParams, numBest int, startLayout Layout) []SimulatedAnnealingResult {
 	rand.Seed(params.RandomSeed)
 
+	// Create a lowercase version of the start layout to normalize all letters to lowercase
+	// but track original uppercase positions to respect them as fixed
+	lowercaseStartLayout, uppercasePositions := createLowercaseLayout(&startLayout)
+
 	var bestResults []SimulatedAnnealingResult
 
 	for restart := 0; restart < params.Restarts; restart++ {
 		fmt.Printf("Рестарт %d/%d\n", restart+1, params.Restarts)
 
-		// Use the specific starting layout
-		currentLayout := startLayout
+		// Use the lowercase starting layout
+		currentLayout := *lowercaseStartLayout
 		if restart > 0 {
 			// For additional restarts, we could use random layouts or the best layout from previous runs
 			// For now, we'll continue using the same starting point or the best from previous iterations
@@ -375,7 +470,8 @@ func SearchOptimalLayoutFromSpecificLayout(config *KeyboardConfig, langData *Lan
 
 		for iter := 0; iter < params.Iterations; iter++ {
 			// Generate neighboring solution - using only characters in the start layout
-			neighborLayout := generateNeighborFromBaseLayout(&currentLayout, config, &startLayout)
+			// Pass the original uppercase positions to respect them as fixed
+			neighborLayout := generateNeighborFromBaseLayoutWithUppercaseInfo(&currentLayout, config, lowercaseStartLayout, uppercasePositions)
 			neighborAnalysis := AnalyzeLayout(&neighborLayout, config, langData)
 			neighborScore := neighborAnalysis.WeightedScore
 
@@ -402,7 +498,7 @@ func SearchOptimalLayoutFromSpecificLayout(config *KeyboardConfig, langData *Lan
 
 		// Add best result from this restart to results
 		bestResults = append(bestResults, SimulatedAnnealingResult{
-			Layout:   bestLayoutRestart,
+			Layout:   bestLayoutRestart,  // Result will be in lowercase
 			Score:    bestScoreRestart,
 			Analysis: bestAnalysisRestart,
 		})
@@ -436,14 +532,14 @@ func SearchOptimalLayoutFromRandomLayout(config *KeyboardConfig, langData *Langu
 		// Create a random layout from only those characters present in existing layouts
 		var letters []string
 
-		// Extract characters from existing layouts
+		// Extract characters from existing layouts (convert to lowercase to avoid uppercase letters)
 		charsMap := make(map[string]bool)
 		for _, layout := range layouts.Layouts {
 			for row := 0; row < 3; row++ {
 				for col := 0; col < 10; col++ {
 					key := layout.Keys[row][col]
 					if key != "" && key != " " {
-						charsMap[key] = true
+						charsMap[strings.ToLower(key)] = true  // Convert to lowercase
 					}
 				}
 			}
@@ -541,6 +637,9 @@ func SearchOptimalLayoutFromRandomLayout(config *KeyboardConfig, langData *Langu
 
 // generateNeighborFromBaseLayout generates a neighboring solution using only characters from the base layout
 func generateNeighborFromBaseLayout(layout *Layout, config *KeyboardConfig, baseLayout *Layout) Layout {
+	// Create lowercase version of base layout and track uppercase positions
+	_, uppercasePositions := createLowercaseLayout(baseLayout)
+
 	neighbor := *layout
 
 	// Collect unique characters from the base layout
@@ -560,12 +659,30 @@ func generateNeighborFromBaseLayout(layout *Layout, config *KeyboardConfig, base
 		chars = append(chars, char)
 	}
 
+	// Check if the original base layout had uppercase letters
+	hasUppercase := hasUppercaseLetters(baseLayout)
+
 	// Находим позиции, которые не зафиксированы и не пусты
 	var swapPositions [][2]int
 	for row := 0; row < 3; row++ {
 		for col := 0; col < 10; col++ {
-			if config.FixedPositions[row][col] == "." && layout.Keys[row][col] != "" && layout.Keys[row][col] != " " {
-				swapPositions = append(swapPositions, [2]int{row, col})
+			// Если в базовой раскладке были заглавные буквы, используем только их как фиксированные позиции
+			// Иначе используем фиксированные позиции из конфига
+			if hasUppercase {
+				// Только позиции без оригинальных заглавных букв доступны для свапа
+				if layout.Keys[row][col] != "" &&
+				   layout.Keys[row][col] != " " &&
+				   !uppercasePositions[row][col] {
+					swapPositions = append(swapPositions, [2]int{row, col})
+				}
+			} else {
+				// Используем фиксированные позиции из конфига
+				if config.FixedPositions[row][col] == "." &&
+				   layout.Keys[row][col] != "" &&
+				   layout.Keys[row][col] != " " &&
+				   !isUppercase(baseLayout.Keys[row][col]) {
+					swapPositions = append(swapPositions, [2]int{row, col})
+				}
 			}
 		}
 	}
@@ -605,21 +722,129 @@ func generateRandomNeighborIgnoreFixed(layout *Layout, config *KeyboardConfig, l
 		return neighbor
 	}
 
-	// Find two random positions to swap (anywhere on the board, ignoring fixed positions)
-	pos1Row := rand.Intn(3)
-	pos1Col := rand.Intn(10)
-	pos2Row := rand.Intn(3) 
-	pos2Col := rand.Intn(10)
+	// Проверяем, содержит ли раскладка заглавные буквы
+	hasUppercase := hasUppercaseLetters(layout)
 
-	// Ensure they are different positions
-	for pos1Row == pos2Row && pos1Col == pos2Col {
-		pos2Row = rand.Intn(3)
-		pos2Col = rand.Intn(10)
+	// Find two random positions to swap, avoiding positions with uppercase letters
+	var swappablePositions [][2]int
+	for row := 0; row < 3; row++ {
+		for col := 0; col < 10; col++ {
+			// Если в раскладке есть заглавные буквы, используем только их как фиксированные позиции
+			// Иначе просто проверяем на заглавные в текущей раскладке
+			if hasUppercase {
+				// Только позиции без заглавных букв доступны для свапа
+				if !isUppercase(layout.Keys[row][col]) {
+					swappablePositions = append(swappablePositions, [2]int{row, col})
+				}
+			} else {
+				// В противном случае, просто проверяем на заглавные в текущей раскладке
+				if !isUppercase(layout.Keys[row][col]) {
+					swappablePositions = append(swappablePositions, [2]int{row, col})
+				}
+			}
+		}
 	}
 
+	if len(swappablePositions) < 2 {
+		return neighbor
+	}
+
+	// Select two random positions from swappable positions
+	idx1 := rand.Intn(len(swappablePositions))
+	idx2 := rand.Intn(len(swappablePositions))
+
+	// Ensure they are different positions
+	for idx2 == idx1 {
+		idx2 = rand.Intn(len(swappablePositions))
+	}
+
+	pos1 := swappablePositions[idx1]
+	pos2 := swappablePositions[idx2]
+
 	// Swap the keys
-	neighbor.Keys[pos1Row][pos1Col], neighbor.Keys[pos2Row][pos2Col] = 
-		neighbor.Keys[pos2Row][pos2Col], neighbor.Keys[pos1Row][pos1Col]
+	neighbor.Keys[pos1[0]][pos1[1]], neighbor.Keys[pos2[0]][pos2[1]] =
+		neighbor.Keys[pos2[0]][pos2[1]], neighbor.Keys[pos1[0]][pos1[1]]
+
+	return neighbor
+}
+
+// generateNeighborFromBaseLayoutWithUppercaseInfo generates a neighboring solution using uppercase position information
+func generateNeighborFromBaseLayoutWithUppercaseInfo(layout *Layout, config *KeyboardConfig, baseLayout *Layout, uppercasePositions [3][10]bool) Layout {
+	neighbor := *layout
+
+	// Collect unique characters from the base layout
+	uniqueChars := make(map[string]bool)
+	for row := 0; row < 3; row++ {
+		for col := 0; col < 10; col++ {
+			key := baseLayout.Keys[row][col]
+			if key != "" && key != " " {
+				uniqueChars[key] = true
+			}
+		}
+	}
+
+	// Get characters as a slice
+	chars := make([]string, 0, len(uniqueChars))
+	for char := range uniqueChars {
+		chars = append(chars, char)
+	}
+
+	// Check if the original base layout had uppercase letters
+	hasUppercase := false
+	for row := 0; row < 3; row++ {
+		for col := 0; col < 10; col++ {
+			if uppercasePositions[row][col] {
+				hasUppercase = true
+				break
+			}
+		}
+		if hasUppercase {
+			break
+		}
+	}
+
+	// Находим позиции, которые не зафиксированы и не пусты
+	var swapPositions [][2]int
+	for row := 0; row < 3; row++ {
+		for col := 0; col < 10; col++ {
+			// Если в базовой раскладке были заглавные буквы, используем только их как фиксированные позиции
+			// Иначе используем фиксированные позиции из конфига
+			if hasUppercase {
+				// Только позиции без оригинальных заглавных букв доступны для свапа
+				if layout.Keys[row][col] != "" &&
+				   layout.Keys[row][col] != " " &&
+				   !uppercasePositions[row][col] {
+					swapPositions = append(swapPositions, [2]int{row, col})
+				}
+			} else {
+				// Используем фиксированные позиции из конфига
+				if config.FixedPositions[row][col] == "." &&
+				   layout.Keys[row][col] != "" &&
+				   layout.Keys[row][col] != " " &&
+				   !isUppercase(baseLayout.Keys[row][col]) {
+					swapPositions = append(swapPositions, [2]int{row, col})
+				}
+			}
+		}
+	}
+
+	if len(swapPositions) < 2 {
+		return neighbor
+	}
+
+	// Выбираем две случайные позиции
+	idx1 := rand.Intn(len(swapPositions))
+	idx2 := rand.Intn(len(swapPositions))
+	for idx2 == idx1 && len(swapPositions) > 1 {
+		idx2 = rand.Intn(len(swapPositions))
+	}
+
+	pos1 := swapPositions[idx1]
+	pos2 := swapPositions[idx2]
+
+	// Обмениваем буквы
+	neighbor.Keys[pos1[0]][pos1[1]], neighbor.Keys[pos2[0]][pos2[1]] =
+		neighbor.Keys[pos2[0]][pos2[1]], neighbor.Keys[pos1[0]][pos1[1]]
 
 	return neighbor
 }
